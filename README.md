@@ -201,4 +201,10 @@ The Docker configuration is defined in [Dockerfile](./Dockerfile), and the OpenE
 
 ## Team
 
-TriageIQ Team built this environment for the Meta PyTorch OpenEnv x Scaler India AI Hackathon, with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.
+TriageIQ was built by:
+
+* **Deepanshu Sirohi**
+* **Sahas Rastogi**
+* **Yashraj Gulyani**
+
+Built for the Meta PyTorch OpenEnv x Scaler India AI Hackathon, with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.
