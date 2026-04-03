@@ -125,7 +125,6 @@ def root():
         </head>
         <body>
           <main>
-            <div class="pill">Meta PyTorch OpenEnv x Scaler India AI Hackathon</div>
             <h1>TriageIQ</h1>
             <p>
               TriageIQ is an OpenEnv-compatible customer support triage environment where agents
