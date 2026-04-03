@@ -146,13 +146,11 @@ def run_all_tasks(seed: int = 42) -> Dict[str, Any]:
 def main() -> None:
     summary = run_all_tasks()
     scores = summary["scores"]
-    print(
-        "FINAL SCORES "
-        f"Easy={scores['easy']:.4f} "
-        f"Medium={scores['medium']:.4f} "
-        f"Hard={scores['hard']:.4f} "
-        f"Overall={summary['overall']:.4f}"
-    )
+    print("\nFINAL SCORES")
+    print(f"Easy: {scores['easy']:.4f}")
+    print(f"Medium: {scores['medium']:.4f}")
+    print(f"Hard: {scores['hard']:.4f}")
+    print(f"Overall: {summary['overall']:.4f}")
 
 
 if __name__ == "__main__":
