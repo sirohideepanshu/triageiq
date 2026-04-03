@@ -1,6 +1,5 @@
-__pycache__/
+echo "__pycache__/
 *.pyc
-*.pyo
-*.pyd
 .DS_Store
-.env
+.env" > .gitignore
+git rm -r --cached __pycache__ 2>/dev/null || true
