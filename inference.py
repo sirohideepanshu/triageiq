@@ -16,6 +16,23 @@ SYSTEM_PROMPT = (
 )
 
 
+def log_start(task: str, model: str) -> None:
+    print(f"[START] task={task} env=triageiq model={model}", flush=True)
+
+
+def log_step(step: int, action: dict, reward: float, done: bool, error=None) -> None:
+    action_type = action.get("action_type", "unknown")
+    dept = action.get("department", "")
+    action_str = f"{action_type}:{dept}" if dept else action_type
+    error_val = str(error) if error else "null"
+    print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
+
+
+def log_end(success: bool, steps: int, rewards: list) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+
+
 def _initialize_client() -> tuple[Optional[OpenAI], Dict[str, Any]]:
     api_base_url = os.getenv("API_BASE_URL", "").strip()
     model_name = os.getenv("MODEL_NAME", "").strip() or "meta-llama/Llama-3.1-8B-Instruct"
@@ -83,9 +100,9 @@ def _llm_action(
     task_name: str,
     observation: Dict[str, Any],
     ticket_memory: Dict[str, int],
-) -> Dict[str, str]:
+) -> tuple[Dict[str, str], Optional[str]]:
     if client is None:
-        return _heuristic_action(task_name, observation, ticket_memory)
+        return _heuristic_action(task_name, observation, ticket_memory), None
 
     try:
         response = client.chat.completions.create(
@@ -101,13 +118,16 @@ def _llm_action(
         )
         message = response.choices[0].message.content or ""
         parsed = _extract_json(message)
-        return {
-            "action_type": str(parsed.get("action_type", "")).strip().lower(),
-            "department": str(parsed.get("department", "")).strip().lower(),
-            "response_text": str(parsed.get("response_text", "")).strip(),
-        }
-    except Exception:
-        return _heuristic_action(task_name, observation, ticket_memory)
+        return (
+            {
+                "action_type": str(parsed.get("action_type", "")).strip().lower(),
+                "department": str(parsed.get("department", "")).strip().lower(),
+                "response_text": str(parsed.get("response_text", "")).strip(),
+            },
+            None,
+        )
+    except Exception as exc:
+        return _heuristic_action(task_name, observation, ticket_memory), str(exc)
 
 
 def run_task(task_name: str, seed: int, client: Optional[OpenAI], runtime: Dict[str, Any]) -> Dict[str, Any]:
@@ -115,23 +135,24 @@ def run_task(task_name: str, seed: int, client: Optional[OpenAI], runtime: Dict[
     observation = env.reset(seed=seed)
     done = False
     ticket_memory: Dict[str, int] = {}
+    rewards: list[float] = []
+    log_start(task_name, runtime["model_name"])
 
     while not done:
-        action = _llm_action(client, runtime, task_name, observation, ticket_memory)
-        observation, reward, done, _info = env.step(action)
-        print(
-            f"[STEP] {json.dumps({'task': task_name, 'step': env.total_steps_taken, 'action_type': action.get('action_type', ''), 'department': action.get('department', ''), 'reward': reward, 'done': done}, ensure_ascii=True)}"
-        )
+        action, action_error = _llm_action(client, runtime, task_name, observation, ticket_memory)
+        observation, reward, done, info = env.step(action)
+        error = info.get("error") or action_error
+        rewards.append(reward)
+        log_step(env.total_steps_taken, action, reward, done, error)
 
-    return env.get_summary()
+    summary = env.get_summary()
+    success = grade_task(summary) >= 0.5
+    log_end(success, len(rewards), rewards)
+    return summary
 
 
 def run_all_tasks(seed: int = 42) -> Dict[str, Any]:
     client, runtime = _initialize_client()
-    print(
-        f"[START] {json.dumps({'seed': seed, 'runtime': runtime, 'openai_client_initialized': client is not None}, ensure_ascii=True)}"
-    )
-
     task_results: Dict[str, Any] = {}
     scores: Dict[str, float] = {}
     for task_name in ("easy", "medium", "hard"):
@@ -139,7 +160,6 @@ def run_all_tasks(seed: int = 42) -> Dict[str, Any]:
         scores[task_name] = grade_task(task_results[task_name])
 
     overall = round(sum(scores.values()) / len(scores), 4)
-    print(f"[END] {json.dumps({'scores': scores, 'overall': overall}, ensure_ascii=True)}")
     return {"tasks": task_results, "scores": scores, "overall": overall}
 
 
