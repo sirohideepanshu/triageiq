@@ -1,0 +1,20 @@
+spec_version: 1
+name: triageiq
+description: TriageIQ is an OpenEnv-compatible customer support triage environment. An AI agent reads support tickets and must route, respond, escalate, and close them correctly across easy, medium, and hard tasks.
+type: space
+runtime: fastapi
+app: server_app:app
+port: 8000
+
+tasks:
+  - name: easy
+  - name: medium
+  - name: hard
+
+grader:
+  path: grader/grader.py
+  function: grade_all
+
+metadata:
+  author: TriageIQ Team
+  version: 1.0.0
