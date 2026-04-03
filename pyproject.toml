@@ -1,0 +1,28 @@
+[project]
+name = "triageiq"
+version = "1.0.0"
+description = "TriageIQ — Customer support ticket triage environment for OpenEnv"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2.0",
+    "openai",
+    "openenv",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = []
+
+
+[project.scripts]
+server = "server.app:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
