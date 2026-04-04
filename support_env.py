@@ -370,3 +370,15 @@ class SupportEnv:
     @staticmethod
     def _clamp_reward(reward: float) -> float:
         return round(max(-1.0, min(1.0, reward)), 4)
+
+async def reset_async(self, seed=None, initial_conditions=None):
+    return self.reset(seed=seed, initial_conditions=initial_conditions)
+
+async def step_async(self, action):
+    return self.step(action)
+
+async def state_async(self):
+    return self.state()
+
+def close(self):
+    pass
