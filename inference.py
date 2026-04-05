@@ -396,10 +396,10 @@ def _ticket_ready_to_close(ticket_state: Dict[str, Any]) -> bool:
 # ── Client setup ───────────────────────────────────────────────────────────
 
 def _initialize_client() -> Tuple[Optional[OpenAI], str]:
-    api_base_url = os.getenv("API_BASE_URL", "").strip()
-    model_name = os.getenv("MODEL_NAME", "").strip() or "meta-llama/Llama-3.1-8B-Instruct"
+    api_base_url = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").strip()
+    model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct").strip()
     hf_token = os.getenv("HF_TOKEN", "").strip()
-    if api_base_url and hf_token:
+    if hf_token:
         return OpenAI(base_url=api_base_url, api_key=hf_token), model_name
     return None, model_name
 
