@@ -144,10 +144,11 @@ Final score:
 
 Running [inference.py](./inference.py) offline with the built-in heuristic fallback produces these deterministic baseline scores for seed `42`:
 
-* Easy: `0.7000`
-* Medium: `0.4333`
-* Hard: `0.4450`
-* Overall: `0.5261`
+# * Easy: `0.7000`
+# * Medium: `0.9750`
+# * Hard: `0.8150`
+# * Overall: `0.8300`
+# * Average across seeds 40–49: `0.7139`
 
 If `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` are provided, the script will query the configured model at every step and only fall back to heuristics if parsing or API calls fail.
 
@@ -199,12 +200,14 @@ The Docker configuration is defined in [Dockerfile](./Dockerfile), and the OpenE
 - [tasks/hard.py](./tasks/hard.py): Hard task factory
 - [server/app.py](./server/app.py): HTTP server app
 
+
+
 ## Team
 
-TriageIQ was built by:
+**Team Tensor Titans** — built for the Meta PyTorch OpenEnv x Scaler India AI Hackathon 2026.
 
 * **Deepanshu Sirohi**
 * **Sahas Rastogi**
 * **Yashraj Gulyani**
 
-Built for the Meta PyTorch OpenEnv x Scaler India AI Hackathon, with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.
+Built with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.
