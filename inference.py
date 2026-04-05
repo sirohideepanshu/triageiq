@@ -21,54 +21,104 @@ SYSTEM_PROMPT = (
     "For close: only close after routing and responding with good coverage."
 )
 
-# ── Department classification ──────────────────────────────────────────────
+# ── Weighted keyword scoring ───────────────────────────────────────────────
 
-BILLING_KEYWORDS = [
-    "invoice", "invoices", "bill", "billing", "charge", "charged", "overcharged",
-    "payment", "payments", "refund", "refunds", "reimbursement", "subscription",
-    "price", "pricing", "cost", "fee", "fees", "credit", "debit", "transaction",
-    "receipt", "renewal", "cancel", "cancellation", "upgrade", "downgrade",
-    "plan", "tier", "money", "paid", "pay", "owing", "balance", "discount",
-    "promo", "coupon", "trial", "free trial", "auto-renew", "auto renew",
-    "chargeback", "dispute", "bank", "card", "wallet", "checkout",
-    "vat", "tax", "taxes", "tax exemption", "tax exempt", "exemption certificate",
-    "charged twice", "double charged", "extra charge", "unexpected charge",
-    "billing cycle", "next bill", "due date", "overdue", "finance rejected",
-    "payment failed", "payment declined", "card declined", "payment method",
+BILLING_WEIGHTED: List[Tuple[str, float]] = [
+    # Very strong billing signals
+    ("invoice", 3.0), ("invoices", 3.0), ("vat", 3.0), ("tax exempt", 3.0),
+    ("exemption certificate", 3.0), ("finance rejected", 3.0), ("overcharged", 3.0),
+    ("refund", 2.5), ("reimbursement", 2.5), ("chargeback", 2.5),
+    ("charged twice", 2.5), ("double charged", 2.5), ("payment failed", 2.5),
+    ("payment declined", 2.5), ("card declined", 2.5), ("billing dispute", 2.5),
+    # Strong billing signals
+    ("billing", 2.0), ("charge", 2.0), ("charged", 2.0), ("payment", 2.0),
+    ("subscription", 2.0), ("renewal", 2.0), ("cancellation", 2.0),
+    ("receipt", 2.0), ("transaction", 2.0), ("debit", 2.0), ("credit", 2.0),
+    # Medium billing signals — lowered from previous version to avoid false positives
+    ("fee", 1.5), ("fees", 1.5), ("discount", 1.5), ("promo", 1.5),
+    ("coupon", 1.5), ("free trial", 1.5), ("auto-renew", 1.5),
+    ("balance", 1.5), ("owing", 1.5), ("overdue", 1.5), ("due date", 1.5),
+    ("wallet", 1.5), ("checkout", 1.5), ("bank", 1.5),
+    # Weak billing signals — these appear in general questions too
+    # "plan", "pricing", "upgrade", "cancel", "tier" intentionally lowered
+    ("cancel", 1.2), ("billing cycle", 1.5), ("next bill", 1.5),
+    ("payment method", 1.5), ("price increase", 2.0), ("price change", 2.0),
+    ("plan cost", 2.0), ("monthly cost", 2.0), ("annual cost", 2.0),
+    ("plan", 0.5), ("pricing", 0.8), ("upgrade", 0.6), ("downgrade", 0.8),
+    ("tier", 0.5), ("money", 0.8), ("paid", 0.8), ("pay", 0.5),
+    ("tax", 0.8), ("taxes", 0.8), ("cost", 0.5),
 ]
 
-# NOTE: "feature", "slow", "export", "import", "update", "request" removed —
-# they are too generic and cause false positives on general tickets.
-TECHNICAL_KEYWORDS = [
-    "bug", "bugs", "error", "errors", "crash", "crashes", "broken", "not working",
-    "login", "password", "reset password", "account locked", "locked out",
-    "cannot log in", "can't log in", "failing", "failed",
-    "outage", "service down", "timeout", "integration", "api",
-    "connection failed", "install", "configure", "sync error",
-    "glitch", "freeze", "500", "404", "server error",
-    "database", "stack trace", "token expired", "oauth", "sso", "saml",
-    "webhook", "endpoint", "latency", "lag", "unresponsive",
-    "corrupt", "notification failed", "email not sending",
-    "two factor", "2fa", "mfa", "authentication failed", "unauthorized",
-    "forbidden", "permission denied", "security breach",
-    "not loading", "blank screen", "white screen", "page not found",
-    "500 error", "502", "503", "csrf", "cors", "rate limit", "throttle",
-    "ssl", "tls", "dns", "deployment failed", "build failed",
-    "pipeline", "monitoring", "alert", "incident report",
+TECHNICAL_WEIGHTED: List[Tuple[str, float]] = [
+    # Very strong technical signals
+    ("account locked", 3.0), ("locked out", 3.0), ("cannot log in", 3.0),
+    ("can't log in", 3.0), ("sso", 3.0), ("saml", 3.0), ("oauth", 3.0),
+    ("webhook", 3.0), ("integration", 3.0), ("stack trace", 3.0),
+    ("500 error", 3.0), ("502", 2.5), ("503", 2.5),
+    ("deployment failed", 3.0), ("build failed", 3.0),
+    ("outage", 3.0), ("service down", 3.0),
+    ("security breach", 3.0), ("hacked", 3.0), ("compromised", 3.0),
+    ("formatting stripped", 3.0), ("headings stripped", 3.0),
+    ("chart is blank", 3.0), ("every chart is blank", 3.0),
+    ("date filter", 2.5), ("blank after", 2.5),
+    # Strong technical signals
+    ("bug", 2.5), ("crash", 2.5), ("crashes", 2.5), ("broken", 2.5),
+    ("not working", 2.5), ("error", 2.0), ("errors", 2.0), ("glitch", 2.5),
+    ("login", 2.0), ("password", 2.0), ("reset password", 2.5),
+    ("2fa", 2.5), ("mfa", 2.5), ("two factor", 2.5),
+    ("authentication failed", 2.5), ("unauthorized", 2.5), ("forbidden", 2.5),
+    ("permission denied", 2.5), ("sync error", 2.5),
+    ("endpoint", 2.0), ("token expired", 2.5),
+    ("rate limit", 2.0), ("timeout", 2.0), ("latency", 2.0),
+    ("lag", 1.5), ("unresponsive", 2.0),
+    ("not loading", 2.0), ("blank screen", 2.0), ("page not found", 2.0),
+    ("ssl", 2.0), ("tls", 2.0), ("dns", 2.0), ("cors", 2.0), ("csrf", 2.0),
+    ("server error", 2.0), ("database", 2.0),
+    ("failing", 2.0), ("failed", 1.5), ("freeze", 2.0),
+    ("email not sending", 2.5), ("notification failed", 2.0),
+    ("knowledge base import", 2.5), ("formatting issue", 2.5),
+    ("headings", 2.0), ("code block", 2.0), ("published help center", 2.5),
+    ("article formatting", 2.5),
+    # Medium — "api" lowered because many general questions mention API
+    ("api", 1.5), ("dashboard", 2.0),
+    ("connection", 1.0), ("install", 1.0), ("configure", 1.0),
+    ("monitoring", 1.5), ("alert", 1.5), ("incident", 1.5),
+    ("cannot", 1.0), ("access", 0.8),
 ]
 
-GENERAL_KEYWORDS = [
-    "feature request", "how to", "guide", "tutorial", "documentation", "docs",
-    "onboard", "onboarding", "getting started", "question", "help me understand",
-    "feedback", "suggestion", "improvement", "request", "download",
-    "plan comparison", "what is", "can you", "is it possible", "roadmap",
-    "release", "update", "changelog", "announcement",
-    "archive", "archived", "archiving", "bulk archive", "retention",
-    "retention policy", "deleted", "deletion", "difference between",
-    "what is the difference", "concise", "explain the", "explain how",
-    "bulk", "one by one", "closed cases", "conversation history",
-    "slow to respond", "feature", "way to do", "another way",
-    "is there a way", "is this possible", "can i", "do you support",
+GENERAL_WEIGHTED: List[Tuple[str, float]] = [
+    # Very strong general signals
+    ("feature request", 3.0), ("bulk archive", 3.0), ("retention policy", 3.0),
+    ("difference between", 3.0), ("archived and deleted", 3.0),
+    ("is this on your roadmap", 3.0), ("formal quote", 3.0),
+    ("procurement", 3.0), ("not reporting a bug", 3.0),
+    ("general question", 3.0), ("quick question", 3.0),
+    ("free plan include", 3.0), ("does the free plan", 3.0),
+    ("unlimited teammates", 3.0), ("how many teammates", 3.0),
+    ("export all customer conversations", 3.0), ("export conversations", 3.0),
+    ("before ending our contract", 3.0), ("before ending our subscription", 3.0),
+    ("audit log retention", 3.0), ("audit log", 2.5),
+    ("native connector", 2.5), ("google sheets", 2.5),
+    ("usage metrics", 2.0), ("into google", 2.5),
+    # Strong general signals
+    ("is it possible", 2.5), ("is there another way", 2.5),
+    ("is there a way", 2.5), ("is there a native", 2.5),
+    ("how to", 2.0), ("guide", 2.0), ("tutorial", 2.0),
+    ("documentation", 2.0), ("docs", 2.0), ("roadmap", 2.5),
+    ("onboard", 2.0), ("onboarding", 2.0), ("getting started", 2.5),
+    ("feedback", 2.0), ("suggestion", 2.0), ("improvement", 2.0),
+    ("announcement", 1.5), ("changelog", 1.5), ("release notes", 2.0),
+    ("explain", 1.5), ("concise answer", 2.5), ("simple question", 2.0),
+    ("archive", 2.0), ("archived", 2.0), ("archiving", 2.0),
+    ("retention", 2.0), ("deleted", 1.5), ("deletion", 1.5),
+    ("closed cases", 2.5), ("one by one", 2.5), ("bulk", 2.0),
+    ("conversation history", 2.0), ("what is", 1.5), ("can you", 1.0),
+    ("do you support", 2.0), ("help me understand", 2.0),
+    ("plan comparison", 2.5), ("download", 1.0),
+    ("teammates", 1.5), ("team members", 1.5), ("seats", 1.5),
+    ("quote", 2.0), ("approve", 1.5), ("approval", 1.5),
+    ("pricing page", 2.5), ("checked the pricing", 2.5),
+    ("feature", 1.5), ("request", 1.0), ("export", 1.0),
 ]
 
 ESCALATION_KEYWORDS = [
@@ -80,7 +130,7 @@ ESCALATION_KEYWORDS = [
     "regulator", "complaint", "ombudsman",
 ]
 
-# ── Response templates keyed by (department, issue_type) ──────────────────
+# ── Response templates ─────────────────────────────────────────────────────
 
 RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
     ("billing", "refund"): (
@@ -95,8 +145,8 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
         "Thank you for contacting us about your invoice concern. "
         "We have reviewed your billing account and identified the issue with your invoice. "
         "Our billing team will send you a corrected invoice or statement within 24 hours. "
-        "If you were overcharged or if there is a tax or VAT discrepancy we will correct it immediately. "
-        "A refund or credit will be applied to your account automatically if needed. "
+        "If there is a VAT or tax exemption discrepancy we will correct it immediately. "
+        "A refund or credit will be applied to your account automatically if you were overcharged. "
         "Please review the updated invoice and reach out if any billing discrepancy remains."
     ),
     ("billing", "cancel"): (
@@ -115,7 +165,7 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
     ),
     ("billing", "general"): (
         "Thank you for reaching out about your billing concern. "
-        "We have reviewed your account, payment history, and recent transactions. "
+        "We have reviewed your account, payment history, and recent transactions and charges. "
         "Our billing team is investigating the issue and will resolve it within one business day. "
         "If any incorrect charge is confirmed we will issue a refund or credit to your account. "
         "Please let us know if you have any additional questions about your invoice or subscription."
@@ -124,12 +174,12 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
         "We are sorry to hear you are having trouble accessing your account. "
         "We have verified your identity and initiated an account access reset. "
         "Please check your email for a password reset link and follow the steps to regain access. "
-        "If two-factor authentication is blocking you please use your backup codes or contact us again. "
-        "Clear your browser cache and cookies before trying to log in again."
+        "If two-factor authentication or MFA is blocking you please use your backup codes. "
+        "Clear your browser cache and cookies before trying to log in again and contact us if the issue persists."
     ),
     ("technical", "integration"): (
         "Thank you for reporting this integration issue. "
-        "We have reviewed the API logs and identified the root cause of the connection problem. "
+        "We have reviewed the API and webhook logs and identified the root cause of the connection problem. "
         "Our engineering team is deploying a fix and will notify you once the integration is restored. "
         "In the meantime please retry your API calls with exponential backoff and check our status page. "
         "We will send a follow-up once the fix is verified and the integration is fully operational."
@@ -138,36 +188,36 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
         "We apologize for the performance issues and slow response times you are experiencing. "
         "Our engineering team has identified the bottleneck affecting your account and region. "
         "We are actively working on a fix and expect full resolution within two hours. "
-        "You can monitor progress on our status page. "
+        "You can monitor progress on our status page for live updates on this technical issue. "
         "Thank you for your patience and we will send a status update once the issue is resolved."
     ),
     ("technical", "outage"): (
         "We are aware of the service outage you are experiencing and sincerely apologize. "
         "Our engineering team is treating this as a critical incident and working on an immediate fix. "
         "All affected systems are being investigated and we expect service to be restored shortly. "
-        "Please monitor our status page for live updates. "
-        "We will send you a full incident report and post-mortem once the outage is resolved."
+        "Please monitor our status page for live updates on this outage. "
+        "We will send you a full incident report and post-mortem once the issue is resolved."
     ),
     ("technical", "data"): (
         "Thank you for reporting this data issue. "
         "We have flagged your account for urgent investigation by our data engineering team. "
-        "We are reviewing your sync logs, export history, and recent data changes. "
+        "We are reviewing your sync logs and recent data changes to identify the root cause. "
         "If any data loss is confirmed we will restore from backup immediately. "
         "We will send you a full status update within four hours with our findings and next steps."
     ),
     ("technical", "general"): (
         "Thank you for reporting this technical issue. "
         "We have reproduced the problem and our engineering team is working on a fix. "
-        "We expect to resolve this within one business day and will notify you once the fix is deployed. "
+        "We expect to resolve this technical issue within one business day. "
         "In the meantime please try clearing your cache, using a different browser, or restarting the app. "
-        "We will send you an update as soon as the issue is confirmed resolved."
+        "We will send you an update as soon as the issue is confirmed fixed and deployed."
     ),
     ("general", "onboarding"): (
         "Welcome and thank you for reaching out to our support team. "
         "We are happy to help you get started and make the most of our platform. "
         "Our onboarding team has prepared a step-by-step guide that we will send to your email. "
         "You can also visit our help center and documentation for tutorials on all features. "
-        "Please let us know if you have any specific questions and we will guide you through the setup."
+        "Please let us know if you have any specific questions and we will guide you through setup."
     ),
     ("general", "feature"): (
         "Thank you for your feature request and for taking the time to share your feedback. "
@@ -178,17 +228,38 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
     ),
     ("general", "retention"): (
         "Thank you for reaching out about your data retention and archiving policy questions. "
-        "The difference between archived and deleted conversations is important to understand. "
+        "The difference between archived and deleted conversations is important to understand correctly. "
         "Archived conversations are preserved and remain searchable but are hidden from the main view. "
         "Deleted conversations are permanently removed and cannot be recovered after the retention period. "
         "We recommend reviewing our documentation on retention policy settings before making any changes."
     ),
     ("general", "archive"): (
         "Thank you for your question about our archive and bulk management features. "
-        "We understand archiving closed cases one by one is time-consuming. "
+        "We understand archiving closed cases one by one is time-consuming and inefficient. "
         "We have logged this as a feature request for bulk archive functionality on our roadmap. "
         "In the meantime you can use filters to select multiple closed cases and archive them in batches. "
         "Please check our documentation for the latest guidance on case management and archiving options."
+    ),
+    ("general", "export"): (
+        "Thank you for reaching out about exporting your data and conversations. "
+        "We can assist you with exporting all customer conversations and usage data before your contract ends. "
+        "Please visit your account settings and use the data export feature to download your conversations. "
+        "We will also confirm your cancellation timeline and ensure no data is lost during the transition. "
+        "Our documentation has step-by-step instructions for bulk data export and account closure."
+    ),
+    ("general", "plan"): (
+        "Thank you for your question about our plan options and included features. "
+        "We are happy to clarify what is included in each tier including the free plan. "
+        "Our plans vary in the number of teammates, seats, and features available. "
+        "You can find a full comparison on our pricing page or we can send you a detailed breakdown. "
+        "Please let us know your team size and requirements so we can recommend the right plan for you."
+    ),
+    ("general", "quote"): (
+        "Thank you for reaching out about a formal quote for your Enterprise upgrade. "
+        "Our procurement and sales team will prepare a detailed quote for your approval process. "
+        "Please share your team size, required features, and expected contract length. "
+        "We will send you a formal quote document within one business day for your finance team. "
+        "Feel free to reach out if you have any questions about Enterprise plan features or pricing."
     ),
     ("general", "general"): (
         "Thank you for contacting our support team. "
@@ -200,39 +271,42 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
 }
 
 
-# ── Intent parsing ─────────────────────────────────────────────────────────
+# ── Weighted department scoring ────────────────────────────────────────────
 
-def _score_keywords(text: str, keywords: List[str]) -> int:
-    return sum(1 for kw in keywords if kw in text)
+def _weighted_score(text: str, weighted_keywords: List[Tuple[str, float]]) -> float:
+    return sum(weight for kw, weight in weighted_keywords if kw in text)
 
 
 def _infer_department(ticket_text: str, category_hint: str = "") -> str:
     if category_hint:
         return category_hint
     text = ticket_text.lower()
-    billing = _score_keywords(text, BILLING_KEYWORDS)
-    technical = _score_keywords(text, TECHNICAL_KEYWORDS)
-    general = _score_keywords(text, GENERAL_KEYWORDS)
 
-    # Billing always wins if it has any signal — very specific domain
-    if billing > 0 and billing >= technical:
+    billing = _weighted_score(text, BILLING_WEIGHTED)
+    technical = _weighted_score(text, TECHNICAL_WEIGHTED)
+    general = _weighted_score(text, GENERAL_WEIGHTED)
+
+    # Billing wins only when it clearly dominates — raised threshold to avoid
+    # false positives from weak billing words like "plan", "pricing", "cancel"
+    if billing >= 3.0 and billing > technical and billing > general:
         return "billing"
-    # Technical wins only if it clearly dominates general
-    if technical > general and technical > 0:
+    # Technical wins only if it clearly beats general by meaningful margin
+    if technical > general * 1.3 and technical >= 2.0:
         return "technical"
-    # Default to general for ambiguous or soft signals
+    # Billing can still win if it moderately dominates and no strong general signal
+    if billing >= 2.0 and billing > general * 1.5 and billing > technical:
+        return "billing"
     return "general"
 
 
 def _infer_issue_type(ticket_text: str, department: str) -> str:
     text = ticket_text.lower()
     if department == "billing":
-        # Check VAT/tax first — very specific signal
-        if any(w in text for w in ["vat", "tax exempt", "tax exemption", "exemption certificate", "finance rejected", "tax"]):
+        if any(w in text for w in ["vat", "tax exempt", "tax exemption", "exemption certificate", "finance rejected"]):
             return "invoice"
         if any(w in text for w in ["refund", "reimburs", "money back", "return"]):
             return "refund"
-        if any(w in text for w in ["invoice", "receipt", "statement", "overcharg"]):
+        if any(w in text for w in ["invoice", "receipt", "statement", "overcharg", "tax"]):
             return "invoice"
         if any(w in text for w in ["cancel", "cancellation", "terminate"]):
             return "cancel"
@@ -240,25 +314,31 @@ def _infer_issue_type(ticket_text: str, department: str) -> str:
             return "subscription"
         return "general"
     if department == "technical":
-        if any(w in text for w in ["login", "password", "access", "locked", "lock", "sign in", "2fa", "mfa", "auth"]):
+        if any(w in text for w in ["login", "password", "access", "locked", "lock", "sign in", "2fa", "mfa", "auth", "sso"]):
             return "access"
-        if any(w in text for w in ["integration", "api", "webhook", "endpoint", "connect", "oauth", "sso"]):
+        if any(w in text for w in ["integration", "api", "webhook", "endpoint", "connect", "oauth"]):
             return "integration"
         if any(w in text for w in ["outage", "down", "unavailable", "service disruption", "not reachable"]):
             return "outage"
-        if any(w in text for w in ["latency", "timeout", "lag", "unresponsive", "performance"]):
+        if any(w in text for w in ["latency", "timeout", "lag", "unresponsive", "performance", "slow"]):
             return "performance"
         if any(w in text for w in ["data loss", "missing data", "corrupt", "sync error"]):
             return "data"
         return "general"
     if department == "general":
-        if any(w in text for w in ["retention", "archived", "deleted", "difference between", "retention policy"]):
+        if any(w in text for w in ["retention", "archived and deleted", "difference between", "retention policy", "audit log"]):
             return "retention"
         if any(w in text for w in ["bulk archive", "archive", "archiving", "closed cases", "one by one"]):
             return "archive"
+        if any(w in text for w in ["export all", "export conversations", "export customer", "before ending"]):
+            return "export"
+        if any(w in text for w in ["formal quote", "procurement", "quote for enterprise", "approve the upgrade"]):
+            return "quote"
+        if any(w in text for w in ["free plan", "teammates", "team members", "seats", "how many", "unlimited"]):
+            return "plan"
         if any(w in text for w in ["onboard", "getting started", "how to", "setup", "guide", "tutorial"]):
             return "onboarding"
-        if any(w in text for w in ["feature", "roadmap", "suggestion", "improvement", "request"]):
+        if any(w in text for w in ["feature", "roadmap", "suggestion", "improvement"]):
             return "feature"
         return "general"
     return "general"
@@ -269,30 +349,35 @@ def _get_response(ticket_text: str, department: str) -> str:
     key = (department, issue_type)
     if key in RESPONSE_TEMPLATES:
         return RESPONSE_TEMPLATES[key]
-    fallback_key = (department, "general")
-    return RESPONSE_TEMPLATES.get(fallback_key, RESPONSE_TEMPLATES[("general", "general")])
+    return RESPONSE_TEMPLATES.get((department, "general"), RESPONSE_TEMPLATES[("general", "general")])
+
+
+def _score_escalation_keywords(text: str) -> int:
+    return sum(1 for kw in ESCALATION_KEYWORDS if kw in text)
 
 
 def _should_escalate(observation: Dict[str, Any], task_name: str, ticket_state: Dict[str, Any]) -> bool:
     if task_name in ("easy", "medium"):
         return False
+    if ticket_state.get("escalated", False):
+        return False
+
     text = observation.get("ticket_text", "").lower()
     sentiment = float(observation.get("sentiment", 1.0))
     tier = observation.get("customer_tier", "free")
     sla = float(observation.get("sla_hours_remaining", 99))
     previous = int(observation.get("previous_contacts", 0))
-    already_escalated = ticket_state.get("escalated", False)
 
-    if already_escalated:
-        return False
-
-    escalation_signal = _score_keywords(text, ESCALATION_KEYWORDS) >= 2
+    escalation_signals = _score_escalation_keywords(text)
 
     return any([
         sentiment < 0.15 and tier == "enterprise",
         tier == "enterprise" and sla < 2.0,
-        escalation_signal and tier == "enterprise",
+        escalation_signals >= 2 and tier == "enterprise",
         sentiment < 0.1 and previous >= 3,
+        "production down" in text and tier in {"premium", "enterprise"},
+        "security breach" in text,
+        "hacked" in text and tier in {"premium", "enterprise"},
     ])
 
 
@@ -364,7 +449,6 @@ def _heuristic_action(
     ticket_id = observation["ticket_id"]
     if ticket_id not in ticket_memory:
         ticket_memory[ticket_id] = {
-            "phase": 0,
             "department": None,
             "routed": False,
             "responded": False,
@@ -378,7 +462,6 @@ def _heuristic_action(
     category_hint = observation.get("category_hint", "")
     ticket_text = observation.get("ticket_text", "")
 
-    # Phase 0 — always route first
     if not state["routed"]:
         department = _infer_department(ticket_text, category_hint)
         state["department"] = department
@@ -389,19 +472,16 @@ def _heuristic_action(
 
     department = state["department"] or "general"
 
-    # Escalate if needed and not yet done
     if not state["escalated"] and _should_escalate(observation, task_name, state):
         state["escalated"] = True
         state["escalation_needed"] = True
         return {"action_type": "escalate", "department": "escalation", "response_text": ""}
 
-    # Respond if not yet responded
     if not state["responded"]:
         response = _get_response(ticket_text, department)
         state["responded"] = True
         return {"action_type": "respond", "department": "", "response_text": response}
 
-    # Close only when ready
     if _ticket_ready_to_close(state):
         return {
             "action_type": "close",
@@ -409,7 +489,6 @@ def _heuristic_action(
             "response_text": "Your ticket has been resolved. Thank you for contacting us.",
         }
 
-    # Not ready — respond again with more detail
     response = _get_response(ticket_text, department)
     return {"action_type": "respond", "department": "", "response_text": response}
 
