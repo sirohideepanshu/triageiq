@@ -31,28 +31,44 @@ BILLING_KEYWORDS = [
     "plan", "tier", "money", "paid", "pay", "owing", "balance", "discount",
     "promo", "coupon", "trial", "free trial", "auto-renew", "auto renew",
     "chargeback", "dispute", "bank", "card", "wallet", "checkout",
+    "vat", "tax", "taxes", "tax exemption", "tax exempt", "exemption certificate",
+    "charged twice", "double charged", "extra charge", "unexpected charge",
+    "billing cycle", "next bill", "due date", "overdue", "finance rejected",
+    "payment failed", "payment declined", "card declined", "payment method",
 ]
 
+# NOTE: "feature", "slow", "export", "import", "update", "request" removed —
+# they are too generic and cause false positives on general tickets.
 TECHNICAL_KEYWORDS = [
     "bug", "bugs", "error", "errors", "crash", "crashes", "broken", "not working",
-    "issue", "issues", "problem", "problems", "login", "password", "reset",
-    "access", "locked", "lock", "cannot", "can't", "failing", "failed",
-    "slow", "performance", "outage", "down", "timeout", "integration", "api",
-    "connection", "install", "setup", "configure", "sync", "export", "import",
-    "data loss", "feature", "glitch", "freeze", "500", "404", "server",
-    "database", "code", "stack trace", "token", "oauth", "sso", "saml",
-    "webhook", "endpoint", "latency", "lag", "unresponsive", "missing data",
-    "corrupt", "dashboard", "report", "notification", "email not sending",
-    "two factor", "2fa", "mfa", "authentication", "unauthorized", "forbidden",
-    "permission", "role", "admin", "account locked", "security",
+    "login", "password", "reset password", "account locked", "locked out",
+    "cannot log in", "can't log in", "failing", "failed",
+    "outage", "service down", "timeout", "integration", "api",
+    "connection failed", "install", "configure", "sync error",
+    "glitch", "freeze", "500", "404", "server error",
+    "database", "stack trace", "token expired", "oauth", "sso", "saml",
+    "webhook", "endpoint", "latency", "lag", "unresponsive",
+    "corrupt", "notification failed", "email not sending",
+    "two factor", "2fa", "mfa", "authentication failed", "unauthorized",
+    "forbidden", "permission denied", "security breach",
+    "not loading", "blank screen", "white screen", "page not found",
+    "500 error", "502", "503", "csrf", "cors", "rate limit", "throttle",
+    "ssl", "tls", "dns", "deployment failed", "build failed",
+    "pipeline", "monitoring", "alert", "incident report",
 ]
 
 GENERAL_KEYWORDS = [
     "feature request", "how to", "guide", "tutorial", "documentation", "docs",
-    "onboard", "onboarding", "getting started", "question", "help", "support",
-    "feedback", "suggestion", "improvement", "request", "export", "download",
+    "onboard", "onboarding", "getting started", "question", "help me understand",
+    "feedback", "suggestion", "improvement", "request", "download",
     "plan comparison", "what is", "can you", "is it possible", "roadmap",
     "release", "update", "changelog", "announcement",
+    "archive", "archived", "archiving", "bulk archive", "retention",
+    "retention policy", "deleted", "deletion", "difference between",
+    "what is the difference", "concise", "explain the", "explain how",
+    "bulk", "one by one", "closed cases", "conversation history",
+    "slow to respond", "feature", "way to do", "another way",
+    "is there a way", "is this possible", "can i", "do you support",
 ]
 
 ESCALATION_KEYWORDS = [
@@ -79,7 +95,8 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
         "Thank you for contacting us about your invoice concern. "
         "We have reviewed your billing account and identified the issue with your invoice. "
         "Our billing team will send you a corrected invoice or statement within 24 hours. "
-        "If you were overcharged, a refund or credit will be applied to your account automatically. "
+        "If you were overcharged or if there is a tax or VAT discrepancy we will correct it immediately. "
+        "A refund or credit will be applied to your account automatically if needed. "
         "Please review the updated invoice and reach out if any billing discrepancy remains."
     ),
     ("billing", "cancel"): (
@@ -154,10 +171,24 @@ RESPONSE_TEMPLATES: Dict[Tuple[str, str], str] = {
     ),
     ("general", "feature"): (
         "Thank you for your feature request and for taking the time to share your feedback. "
-        "We have logged your suggestion with our product team for review in our roadmap planning. "
-        "Feature requests from customers are a key input to our development priorities. "
-        "We will notify you if and when this feature is scheduled for release. "
+        "We have logged your suggestion and roadmap request with our product team for review. "
+        "Feature requests from customers are a key input to our development and release planning. "
+        "We will notify you if and when this feature is scheduled for release on our roadmap. "
         "In the meantime please check our documentation for existing functionality that may help."
+    ),
+    ("general", "retention"): (
+        "Thank you for reaching out about your data retention and archiving policy questions. "
+        "The difference between archived and deleted conversations is important to understand. "
+        "Archived conversations are preserved and remain searchable but are hidden from the main view. "
+        "Deleted conversations are permanently removed and cannot be recovered after the retention period. "
+        "We recommend reviewing our documentation on retention policy settings before making any changes."
+    ),
+    ("general", "archive"): (
+        "Thank you for your question about our archive and bulk management features. "
+        "We understand archiving closed cases one by one is time-consuming. "
+        "We have logged this as a feature request for bulk archive functionality on our roadmap. "
+        "In the meantime you can use filters to select multiple closed cases and archive them in batches. "
+        "Please check our documentation for the latest guidance on case management and archiving options."
     ),
     ("general", "general"): (
         "Thank you for contacting our support team. "
@@ -183,19 +214,22 @@ def _infer_department(ticket_text: str, category_hint: str = "") -> str:
     technical = _score_keywords(text, TECHNICAL_KEYWORDS)
     general = _score_keywords(text, GENERAL_KEYWORDS)
 
-    if billing == 0 and technical == 0 and general == 0:
-        # fallback: look at first strong signal word position
-        return "general"
-    if billing >= technical and billing >= general:
+    # Billing always wins if it has any signal — very specific domain
+    if billing > 0 and billing >= technical:
         return "billing"
-    if technical >= billing and technical >= general:
+    # Technical wins only if it clearly dominates general
+    if technical > general and technical > 0:
         return "technical"
+    # Default to general for ambiguous or soft signals
     return "general"
 
 
 def _infer_issue_type(ticket_text: str, department: str) -> str:
     text = ticket_text.lower()
     if department == "billing":
+        # Check VAT/tax first — very specific signal
+        if any(w in text for w in ["vat", "tax exempt", "tax exemption", "exemption certificate", "finance rejected", "tax"]):
+            return "invoice"
         if any(w in text for w in ["refund", "reimburs", "money back", "return"]):
             return "refund"
         if any(w in text for w in ["invoice", "receipt", "statement", "overcharg"]):
@@ -210,17 +244,21 @@ def _infer_issue_type(ticket_text: str, department: str) -> str:
             return "access"
         if any(w in text for w in ["integration", "api", "webhook", "endpoint", "connect", "oauth", "sso"]):
             return "integration"
-        if any(w in text for w in ["slow", "performance", "latency", "timeout", "lag", "unresponsive"]):
-            return "performance"
         if any(w in text for w in ["outage", "down", "unavailable", "service disruption", "not reachable"]):
             return "outage"
-        if any(w in text for w in ["data loss", "missing data", "corrupt", "sync", "export", "import"]):
+        if any(w in text for w in ["latency", "timeout", "lag", "unresponsive", "performance"]):
+            return "performance"
+        if any(w in text for w in ["data loss", "missing data", "corrupt", "sync error"]):
             return "data"
         return "general"
     if department == "general":
+        if any(w in text for w in ["retention", "archived", "deleted", "difference between", "retention policy"]):
+            return "retention"
+        if any(w in text for w in ["bulk archive", "archive", "archiving", "closed cases", "one by one"]):
+            return "archive"
         if any(w in text for w in ["onboard", "getting started", "how to", "setup", "guide", "tutorial"]):
             return "onboarding"
-        if any(w in text for w in ["feature", "request", "suggestion", "roadmap", "improvement"]):
+        if any(w in text for w in ["feature", "roadmap", "suggestion", "improvement", "request"]):
             return "feature"
         return "general"
     return "general"
@@ -236,46 +274,36 @@ def _get_response(ticket_text: str, department: str) -> str:
 
 
 def _should_escalate(observation: Dict[str, Any], task_name: str, ticket_state: Dict[str, Any]) -> bool:
-    if task_name == "easy":
+    if task_name in ("easy", "medium"):
         return False
     text = observation.get("ticket_text", "").lower()
     sentiment = float(observation.get("sentiment", 1.0))
     tier = observation.get("customer_tier", "free")
     sla = float(observation.get("sla_hours_remaining", 99))
     previous = int(observation.get("previous_contacts", 0))
-
-    escalation_signal = _score_keywords(text, ESCALATION_KEYWORDS) > 0
     already_escalated = ticket_state.get("escalated", False)
 
     if already_escalated:
         return False
 
+    escalation_signal = _score_keywords(text, ESCALATION_KEYWORDS) >= 2
+
     return any([
-        sentiment < 0.2 and tier in {"premium", "enterprise"},
-        sentiment < 0.15,
-        tier == "enterprise" and sla < 3.0,
-        tier == "premium" and sla < 1.5,
-        previous >= 4 and sentiment < 0.5,
-        escalation_signal and tier in {"premium", "enterprise"},
-        escalation_signal and sentiment < 0.3,
-        task_name == "hard" and tier == "enterprise" and previous >= 2,
+        sentiment < 0.15 and tier == "enterprise",
+        tier == "enterprise" and sla < 2.0,
+        escalation_signal and tier == "enterprise",
+        sentiment < 0.1 and previous >= 3,
     ])
 
 
 def _ticket_ready_to_close(ticket_state: Dict[str, Any]) -> bool:
-    routed = ticket_state.get("routed", False)
-    responded = ticket_state.get("responded", False)
-    escalation_needed = ticket_state.get("escalation_needed", False)
-    escalated = ticket_state.get("escalated", False)
-    steps = ticket_state.get("steps", 0)
-
-    if not routed:
+    if not ticket_state.get("routed", False):
         return False
-    if not responded:
+    if not ticket_state.get("responded", False):
         return False
-    if escalation_needed and not escalated:
+    if ticket_state.get("escalation_needed", False) and not ticket_state.get("escalated", False):
         return False
-    if steps < 2:
+    if ticket_state.get("steps", 0) < 2:
         return False
     return True
 
@@ -355,11 +383,8 @@ def _heuristic_action(
         department = _infer_department(ticket_text, category_hint)
         state["department"] = department
         state["routed"] = True
-
-        # pre-check if escalation will be needed
         if _should_escalate(observation, task_name, state):
             state["escalation_needed"] = True
-
         return {"action_type": "route", "department": department, "response_text": ""}
 
     department = state["department"] or "general"
@@ -384,7 +409,7 @@ def _heuristic_action(
             "response_text": "Your ticket has been resolved. Thank you for contacting us.",
         }
 
-    # If not ready to close yet, respond again with more detail
+    # Not ready — respond again with more detail
     response = _get_response(ticket_text, department)
     return {"action_type": "respond", "department": "", "response_text": response}
 
