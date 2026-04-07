@@ -50,7 +50,9 @@ def grade_task(results: Dict[str, Any]) -> float:
         + 0.10 * metrics["sla_compliance"]
         + 0.10 * metrics["resolution_rate"]
     )
-    return round(max(0.0, min(1.0, score)), 4)
+    score = round(max(0.0, min(1.0, score)), 4)
+    score = max(0.0001, min(0.9999, score))
+    return round(score, 4)
 
 
 def grade_all(summary: Dict[str, Any] | None = None) -> Dict[str, Any]:
