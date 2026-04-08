@@ -559,7 +559,7 @@ def run_all_tasks(seed: int = 42) -> Dict[str, Any]:
         task_results[task_name] = run_task(task_name, seed, client, model_name)
         scores[task_name] = grade_task(task_results[task_name])
 
-    overall = round(sum(scores.values()) / len(scores), 4)
+    overall = round(max(0.0001, min(0.9999, sum(scores.values()) / len(scores))), 4) if scores else 0.0001
     return {"tasks": task_results, "scores": scores, "overall": overall}
 
 
