@@ -144,10 +144,10 @@ Final score:
 
 Running [inference.py](./inference.py) offline with the built-in heuristic fallback produces these deterministic baseline scores for seed `42`:
 
-# * Easy: `0.7000`
-* Medium: `0.9750`
-* Hard: `0.8150`
-* Overall: `0.8300`
+# Easy:    0.7000
+# Medium:  0.9750
+# Hard:    0.8150
+# Overall: 0.8300
 # * Average across seeds 40–49: `0.7139`
 
 If `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` are provided, the script will query the configured model at every step and only fall back to heuristics if parsing or API calls fail.
