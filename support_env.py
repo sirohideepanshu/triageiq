@@ -182,7 +182,7 @@ class SupportEnv:
             "steps_taken": 0,
             "was_routed_correctly": False,
             "was_responded_to": False,
-            "keyword_score": 0.0,
+            "keyword_score": 0.0001,
             "escalation_attempted": False,
             "was_escalated_correctly": False,
             "was_closed": False,
@@ -293,7 +293,7 @@ class SupportEnv:
         lowered = response_text.lower()
         keywords = ticket_state["ticket"]["resolution_keywords"]
         hits = sum(1 for keyword in keywords if keyword.lower() in lowered)
-        keyword_score = min(1.0, hits / len(keywords))
+        keyword_score = min(0.9999, hits / len(keywords))
         ticket_state["was_responded_to"] = bool(response_text)
         ticket_state["keyword_score"] = max(ticket_state["keyword_score"], keyword_score)
 
@@ -323,7 +323,7 @@ class SupportEnv:
             return -0.4
         if ticket_state["keyword_score"] > 0.5:
             ticket_state["properly_closed"] = not ticket_state["ticket"]["requires_escalation"] or ticket_state["was_escalated_correctly"]
-            return 1.0
+            return 0.9999
         return 0.5
 
     def _apply_sentiment_modifier(self, reward: float, base_sentiment: float) -> float:
