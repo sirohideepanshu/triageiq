@@ -434,9 +434,12 @@ def log_step(step: int, action: Dict[str, str], reward: float, done: bool, error
     print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.4f} rewards={rewards_str}",
+        flush=True,
+    )
 
 
 # ── Heuristic agent ────────────────────────────────────────────────────────
@@ -546,7 +549,7 @@ def run_task(task_name: str, seed: int, client: Optional[OpenAI], model_name: st
     summary = env.get_summary()
     score = grade_task(summary)
     success = score >= 0.5
-    log_end(success, env.total_steps_taken, rewards)
+    log_end(success, env.total_steps_taken, score, rewards)
     return summary
 
 
