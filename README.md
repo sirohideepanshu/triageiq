@@ -210,4 +210,4 @@ The Docker configuration is defined in [Dockerfile](./Dockerfile), and the OpenE
 * **Sahas Rastogi**
 * **Yashraj Gulyani**
 
-Built with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.# rebuilt Thu Apr  9 07:46:05 IST 2026
+Built with a focus on realistic text-native workflows, deterministic grading, and easy local reproducibility.
